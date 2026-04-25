@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rune Idle: Offline Edition</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --rs-gold: #ffcc00;
+            --rs-bg: #0c0c0e;
+            --rs-panel: rgba(24, 24, 27, 0.9);
+            --rs-border: #3f3f46;
+            --rs-accent: #f59e0b;
+        }
+
+        body.skin-default { --rs-bg: #0c0c0e; --rs-panel: rgba(24, 24, 27, 0.9); --rs-border: #3f3f46; --rs-accent: #f59e0b; }
+        body.skin-gold { --rs-bg: #1c140a; --rs-panel: rgba(55, 45, 30, 0.95); --rs-border: #854d0e; --rs-accent: #fbbf24; }
+        body.skin-void { --rs-bg: #050508; --rs-panel: rgba(15, 15, 25, 0.95); --rs-border: #312e81; --rs-accent: #818cf8; }
+        body.skin-forest { --rs-bg: #050a05; --rs-panel: rgba(15, 30, 15, 0.95); --rs-border: #14532d; --rs-accent: #4ade80; }
+
+        body {
+            background-color: var(--rs-bg);
+            background-image: radial-gradient(circle at 50% -20%, rgba(245, 158, 11, 0.05) 0%, transparent 50%);
+            color: #f4f4f5;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .rs-font { font-family: 'Cinzel', serif; }
+        
+        .panel {
+            background: var(--rs-panel);
+            border: 1px solid var(--rs-border);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(12px);
+        }
+
+        .progress-container {
+            height: 8px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .stamina-bar { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+
+        .target-container {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+        .target-container:active { transform: scale(0.95); }
+
+        @keyframes swing {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-20deg); }
+        }
+
+        .is-active #tool-svg {
+            animation: swing 0.6s infinite ease-in-out;
+            display: block !important;
+        }
+
+        .ore-float {
+            position: absolute;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            font-weight: 800;
+            z-index: 50;
+            text-shadow: 0 2px 4px rgba(0,0,0,1);
+        }
+
+        @keyframes floatUp {
+            0% { transform: translate(-50%, 0); opacity: 0; }
+            20% { opacity: 1; }
+            100% { transform: translate(-50%, -50px); opacity: 0; }
+        }
+
+        .tab-btn {
+            border: 1px solid transparent;
+            color: #a1a1aa;
+            transition: all 0.2s;
+            white-space: nowrap;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+        }
+
+        .tab-btn.active {
+            color: var(--rs-accent);
+            background: var(--rs-panel);
+            border: 1px solid var(--rs-border);
+            border-bottom-color: transparent;
+            position: relative;
+            z-index: 10;
+        }
+
+        .skill-nav-btn {
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+        }
+
+        .skill-nav-btn.active {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: var(--rs-accent);
+        }
+
+        .item-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+        }
+
+        .skill-progress-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); height: 100%; }
+        .total-progress-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); height: 100%; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+
+        .game-layout {
+            display: flex;
+            gap: 1rem;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+        }
+        .side-pane {
+            width: 380px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .main-pane {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="skin-default">
+
+    <div class="h-screen flex flex-col p-4 gap-4 max-w-[1600px] mx-auto">
+        <!-- Top Navigation Bar -->
+        <header class="panel flex items-center justify-between px-6 py-3 gap-6 shrink-0">
+            <div class="flex items-center gap-6">
+                <h1 class="text-2xl rs-font font-black text-yellow-500 tracking-tighter leading-none">RUNE IDLE</h1>
+                <div class="flex flex-col min-w-[120px]">
+                    <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
+                        <span>Total Lvl <span id="total-level" class="text-white">6</span></span>
+                        <span id="save-indicator" class="opacity-0 text-green-500 transition-opacity">Saved</span>
+                    </div>
+                    <div class="progress-container h-1.5 mt-1">
+                        <div id="total-progress-bar-header" class="total-progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-grow flex justify-center px-4 overflow-hidden">
+                <div id="skill-nav" class="flex gap-2 overflow-x-auto no-scrollbar py-1"></div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="bg-zinc-900/50 border border-zinc-800 px-4 py-2 rounded-xl flex items-center gap-3">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_8px_#eab308]"></span>
+                    <span id="gold-display" class="rs-font font-bold text-yellow-500 text-sm whitespace-nowrap">0 GP</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Game Layout -->
+        <div class="game-layout">
+            <aside class="side-pane">
+                <div id="action-container" class="panel p-6 flex flex-col items-center justify-center relative flex-shrink-0">
+                    <div class="w-full flex justify-between items-start mb-6">
+                        <div class="flex flex-col">
+                            <span id="active-skill-name" class="text-[9px] uppercase tracking-[0.3em] font-black text-zinc-500">Mining</span>
+                            <span id="current-target-name" class="text-lg rs-font text-white">Copper Rock</span>
+                        </div>
+                        <span id="progress-percent" class="text-[10px] font-black text-zinc-400 bg-zinc-800 px-2 py-1 rounded">0%</span>
+                    </div>
+
+                    <div id="main-target" class="target-container my-2">
+                        <div id="svg-host" class="w-44 h-44 flex items-center justify-center"></div>
+                        <svg id="tool-svg" viewBox="0 0 100 100" class="absolute top-0 right-0 w-16 h-16 hidden pointer-events-none">
+                            <path d="M75,25 L25,75" stroke="#5d4037" stroke-width="8" stroke-linecap="round" />
+                            <path id="tool-head" d="M15,15 Q50,30 85,15 L78,35 Q50,45 22,35 Z" fill="#90a4ae" />
+                        </svg>
+                    </div>
+
+                    <div class="w-full space-y-4 mt-4">
+                        <div class="progress-container"><div id="action-progress-bar" class="progress-bar"></div></div>
+                        <div class="flex items-center gap-3">
+                            <div class="progress-container flex-grow h-1.5"><div id="stamina-bar" class="progress-bar stamina-bar"></div></div>
+                            <span id="stamina-timer" class="text-[10px] font-bold text-zinc-500 tabular-nums">0:00</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 w-full">
+                        <span class="text-[9px] text-zinc-600 uppercase font-black tracking-widest block mb-2">Resource Select</span>
+                        <div id="resource-selector" class="grid grid-cols-4 gap-2"></div>
+                    </div>
+                </div>
+
+                <div class="panel flex-grow flex flex-col overflow-hidden">
+                    <div class="border-b border-zinc-800 px-4 py-2 flex justify-between items-center bg-zinc-900/30">
+                        <span class="text-[10px] uppercase font-black text-zinc-500 tracking-widest">Live Feed</span>
+                        <button onclick="toggleAdminPanel()" class="text-[8px] text-zinc-700 hover:text-zinc-500 font-bold uppercase transition-colors">Admin Access</button>
+                    </div>
+                    <div id="game-logs" class="flex-grow p-4 overflow-y-auto text-[11px] space-y-1.5 font-medium no-scrollbar"></div>
+                    <div id="admin-controls" class="hidden p-2 bg-black/60 border-t border-zinc-800 grid grid-cols-2 gap-2">
+                        <button onclick="adminGrantGold()" class="bg-yellow-900/20 text-yellow-500 text-[9px] py-2 rounded border border-yellow-500/20 font-bold uppercase">Grant 1M</button>
+                        <button onclick="adminResetStamina()" class="bg-blue-900/20 text-blue-400 text-[9px] py-2 rounded border border-blue-500/20 font-bold uppercase">Fill Focus</button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-pane">
+                <nav class="flex gap-1 px-4">
+                    <button onclick="showTab('skills')" id="tab-skills" class="tab-btn active px-5 py-3 text-xs uppercase rs-font">Skills</button>
+                    <button onclick="showTab('inventory')" id="tab-inventory" class="tab-btn px-5 py-3 text-xs uppercase rs-font">Bag</button>
+                    <button onclick="showTab('gear')" id="tab-gear" class="tab-btn px-5 py-3 text-xs uppercase rs-font">Gear</button>
+                    <button onclick="showTab('upgrades')" id="tab-upgrades" class="tab-btn px-5 py-3 text-xs uppercase rs-font">Talents</button>
+                    <button onclick="showTab('store')" id="tab-store" class="tab-btn px-5 py-3 text-xs uppercase rs-font">Shop</button>
+                    <button onclick="showTab('codex')" id="tab-codex" class="tab-btn px-5 py-3 text-xs uppercase rs-font">Journal</button>
+                </nav>
+
+                <div class="panel flex-grow p-6 overflow-y-auto rounded-tl-none relative border-t-0">
+                    <div id="content-skills-wrapper" class="tab-content space-y-6">
+                        <div id="total-skills-overview"></div>
+                        <div id="content-skills" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+                    </div>
+
+                    <div id="content-inventory-wrapper" class="tab-content hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="rs-font text-xl font-bold">Inventory Pouch</h2>
+                            <button onclick="sellAllItems()" class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] px-4 py-2 rounded-lg font-bold uppercase">Sell All Loot</button>
+                        </div>
+                        <div id="content-inventory" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3"></div>
+                    </div>
+
+                    <div id="content-gear-wrapper" class="tab-content hidden space-y-6">
+                        <div class="bg-blue-500/5 border border-blue-500/20 p-6 rounded-2xl">
+                             <h3 id="gear-skill-title" class="rs-font text-xl text-blue-400 mb-1">Equipment</h3>
+                             <p class="text-xs text-zinc-500 mb-6">Tools are unique to the currently selected skill in the header.</p>
+                             <div id="current-power-stats" class="grid grid-cols-2 gap-4"></div>
+                        </div>
+                        <div id="content-gear-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    </div>
+
+                    <div id="content-upgrades-wrapper" class="tab-content hidden space-y-8">
+                        <div id="content-upgrades-skill"></div>
+                        <div id="content-upgrades-global"></div>
+                    </div>
+
+                    <div id="content-store-wrapper" class="tab-content hidden space-y-8">
+                        <div id="store-skins"></div>
+                        <div id="store-tools"></div>
+                        <div id="store-badges"></div>
+                    </div>
+
+                    <div id="content-codex" class="tab-content hidden space-y-8"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Core Data
+        const SKILLS = {
+            mining: { name: 'Mining', color: '#7a5c41', icon: '⛏️', toolName: 'Pickaxe', verb: 'Mined', resources: { copper_ore: { name: 'Copper', lvl: 1, xp: 17.5, val: 5, diff: 10, color: '#d84315' }, tin_ore: { name: 'Tin', lvl: 1, xp: 17.5, val: 5, diff: 10, color: '#b0bec5' }, iron_ore: { name: 'Iron', lvl: 15, xp: 35, val: 15, diff: 25, color: '#5d4037' }, coal: { name: 'Coal', lvl: 30, xp: 50, val: 30, diff: 45, color: '#212121' }, mithril_ore: { name: 'Mithril', lvl: 55, xp: 80, val: 150, diff: 120, color: '#1a237e' }, adamant_ore: { name: 'Adamant', lvl: 70, xp: 95, val: 400, diff: 250, color: '#1b5e20' }, runite_ore: { name: 'Runite', lvl: 85, xp: 125, val: 1200, diff: 600, color: '#00bcd4' } } },
+            woodcutting: { name: 'Woodcutting', color: '#2e7d32', icon: '🪓', toolName: 'Axe', verb: 'Chopped', resources: { logs: { name: 'Normal', lvl: 1, xp: 25, val: 4, diff: 12, color: '#8d6e63' }, oak_logs: { name: 'Oak', lvl: 15, xp: 37.5, val: 12, diff: 28, color: '#5d4037' }, willow_logs: { name: 'Willow', lvl: 30, xp: 67.5, val: 25, diff: 55, color: '#455a64' }, maple_logs: { name: 'Maple', lvl: 45, xp: 100, val: 80, diff: 110, color: '#b71c1c' }, yew_logs: { name: 'Yew', lvl: 60, xp: 175, val: 200, diff: 250, color: '#33691e' }, magic_logs: { name: 'Magic', lvl: 75, xp: 250, val: 800, diff: 450, color: '#3f51b5' } } },
+            fishing: { name: 'Fishing', color: '#0288d1', icon: '🎣', toolName: 'Net', verb: 'Caught', resources: { raw_shrimp: { name: 'Shrimp', lvl: 1, xp: 10, val: 3, diff: 8, color: '#ffab91' }, raw_trout: { name: 'Trout', lvl: 20, xp: 50, val: 20, diff: 35, color: '#b0bec5' }, raw_salmon: { name: 'Salmon', lvl: 30, xp: 70, val: 50, diff: 60, color: '#f48fb1' }, raw_lobster: { name: 'Lobster', lvl: 40, xp: 90, val: 150, diff: 100, color: '#e64a19' }, raw_swordfish: { name: 'Swordfish', lvl: 50, xp: 100, val: 350, diff: 180, color: '#78909c' }, raw_shark: { name: 'Shark', lvl: 76, xp: 110, val: 1200, diff: 350, color: '#37474f' } } },
+            smithing: { name: 'Smithing', color: '#455a64', icon: '🔨', toolName: 'Hammer', isProcessor: true, verb: 'Forged', resources: { bronze_bar: { name: 'Bronze Bar', lvl: 1, xp: 12.5, val: 25, diff: 15, req: 'copper_ore', color: '#cd7f32' }, iron_bar: { name: 'Iron Bar', lvl: 15, xp: 25, val: 80, diff: 30, req: 'iron_ore', color: '#ced4da' }, mithril_bar: { name: 'Mith Bar', lvl: 50, xp: 50, val: 500, diff: 100, req: 'mithril_ore', color: '#5c6bc0' }, runite_bar: { name: 'Rune Bar', lvl: 85, xp: 125, val: 4500, diff: 500, req: 'runite_ore', color: '#00bcd4' } } },
+            cooking: { name: 'Cooking', color: '#f44336', icon: '🍳', toolName: 'Ladle', isProcessor: true, verb: 'Cooked', resources: { cooked_shrimp: { name: 'Shrimp', lvl: 1, xp: 30, val: 10, diff: 10, req: 'raw_shrimp', color: '#ff7043' }, cooked_trout: { name: 'Trout', lvl: 15, xp: 70, val: 60, diff: 25, req: 'raw_trout', color: '#90a4ae' }, cooked_lobster: { name: 'Lobster', lvl: 40, xp: 120, val: 400, diff: 80, req: 'raw_lobster', color: '#ff5722' }, cooked_shark: { name: 'Shark', lvl: 80, xp: 210, val: 2500, diff: 150, req: 'raw_shark', color: '#263238' } } },
+            firemaking: { name: 'Firemaking', color: '#ff9800', icon: '🔥', toolName: 'Tinderbox', isProcessor: true, verb: 'Burned', resources: { burn_logs: { name: 'Logs', lvl: 1, xp: 40, val: 0, diff: 10, req: 'logs', color: '#ff5722' }, burn_oak: { name: 'Oak', lvl: 15, xp: 60, val: 0, diff: 20, req: 'oak_logs', color: '#e64a19' }, burn_willow: { name: 'Willow', lvl: 30, xp: 105, val: 0, diff: 45, req: 'willow_logs', color: '#ff9800' }, burn_magic: { name: 'Magic', lvl: 75, xp: 303, val: 0, diff: 120, req: 'magic_logs', color: '#311b92' } } }
+        };
+
+        const GEAR_DB = [
+            { id: 'mining_bronze', name: 'Bronze Pickaxe', type: 'mining', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'mining_iron', name: 'Iron Pickaxe', type: 'mining', lvl: 10, power: 5.5, cost: 1200 },
+            { id: 'mining_steel', name: 'Steel Pickaxe', type: 'mining', lvl: 20, power: 10, cost: 6000 },
+            { id: 'mining_mithril', name: 'Mithril Pickaxe', type: 'mining', lvl: 40, power: 18, cost: 35000 },
+            { id: 'mining_adamant', name: 'Adamant Pickaxe', type: 'mining', lvl: 60, power: 35, cost: 150000 },
+            { id: 'mining_rune', name: 'Rune Pickaxe', type: 'mining', lvl: 80, power: 75, cost: 750000 },
+            { id: 'mining_dragon', name: 'Dragon Pickaxe', type: 'mining', lvl: 90, power: 150, cost: 5000000 },
+            { id: 'wc_bronze', name: 'Bronze Hatchet', type: 'woodcutting', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'wc_iron', name: 'Iron Hatchet', type: 'woodcutting', lvl: 10, power: 5.5, cost: 1200 },
+            { id: 'wc_steel', name: 'Steel Hatchet', type: 'woodcutting', lvl: 20, power: 10, cost: 6000 },
+            { id: 'wc_rune', name: 'Rune Hatchet', type: 'woodcutting', lvl: 80, power: 75, cost: 750000 },
+            { id: 'fish_net', name: 'Small Fishing Net', type: 'fishing', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'fish_rod', name: 'Fishing Rod', type: 'fishing', lvl: 20, power: 10, cost: 6000 },
+            { id: 'fish_harpoon', name: 'Harpoon', type: 'fishing', lvl: 40, power: 18, cost: 35000 },
+            { id: 'fish_magic', name: 'Magic Net', type: 'fishing', lvl: 80, power: 75, cost: 750000 },
+            { id: 'smith_hammer', name: 'Bronze Hammer', type: 'smithing', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'smith_steel', name: 'Steel Hammer', type: 'smithing', lvl: 20, power: 10, cost: 6000 },
+            { id: 'smith_heavy', name: 'Master Hammer', type: 'smithing', lvl: 70, power: 50, cost: 350000 },
+            { id: 'cook_apron', name: 'Leather Apron', type: 'cooking', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'cook_gloves', name: 'Cooking Gloves', type: 'cooking', lvl: 40, power: 18, cost: 35000 },
+            { id: 'cook_master', name: 'Chef Mittens', type: 'cooking', lvl: 80, power: 75, cost: 750000 },
+            { id: 'fm_tbox', name: 'Tinderbox', type: 'firemaking', lvl: 1, power: 2.5, cost: 0 },
+            { id: 'fm_blue', name: 'Blue Tinderbox', type: 'firemaking', lvl: 30, power: 12, cost: 15000 },
+            { id: 'fm_gold', name: 'Golden Tinderbox', type: 'firemaking', lvl: 70, power: 55, cost: 450000 },
+        ];
+
+        const COSMETICS_DB = [
+            { id: 'skin_default', name: 'Original Grey', type: 'skin', cost: 0, value: 'skin-default', desc: 'Classic rugged look.' },
+            { id: 'skin_gold', name: 'Royal Gold', type: 'skin', cost: 150000, value: 'skin-gold', desc: 'Gilded interface.' },
+            { id: 'skin_void', name: 'Abyssal Void', type: 'skin', cost: 500000, value: 'skin-void', desc: 'Dark energy themes.' },
+            { id: 'skin_forest', name: 'Forest Bloom', type: 'skin', cost: 40000, value: 'skin-forest', desc: 'Nature inspired.' },
+            { id: 'tool_standard', name: 'Standard Set', type: 'tool', cost: 0, value: '#90a4ae', desc: 'Iron tools.' },
+            { id: 'tool_obsidian', name: 'Obsidian Set', type: 'tool', cost: 125000, value: '#212121', desc: 'Volcanic glass tools.' },
+            { id: 'tool_celestial', name: 'Celestial Set', type: 'tool', cost: 1000000, value: '#818cf8', desc: 'Stardust tools.' },
+            { id: 'badge_miner', name: 'Deep Miner', type: 'badge', cost: 15000, value: '⛏️', desc: 'Cave delver.' },
+            { id: 'badge_wealth', name: 'Money Bags', type: 'badge', cost: 250000, value: '💰', desc: 'Hoard gold.' },
+            { id: 'badge_star', name: 'Master Pro', type: 'badge', cost: 5000000, value: '⭐', desc: 'The legend mark.' }
+        ];
+
+        const UPGRADES_DB = [];
+        Object.keys(SKILLS).forEach(skillKey => {
+            const skill = SKILLS[skillKey];
+            for (let i = 1; i <= 8; i++) {
+                const tier = i; const cost = Math.floor(2500 * Math.pow(2.8, i - 1));
+                let trait = (i % 3 === 1) ? "speed" : (i % 3 === 2 ? "xp" : (!skill.isProcessor ? "luck" : "value"));
+                let bonus = trait === "xp" ? 0.20 * i : (trait === "speed" ? 0.15 * i : 0.08 * i);
+                UPGRADES_DB.push({ id: `${skillKey}_${trait}_${tier}`, name: `${skill.name} T${tier}`, desc: trait === "speed" ? `Faster gathering.` : (trait === "xp" ? `Bonus XP gained.` : `Better loot chances.`), cost, type: skillKey, trait, bonus });
+            }
+        });
+        UPGRADES_DB.push({ id: 'stamina_1', name: 'Focus I', desc: '10m focus capacity.', cost: 10000, type: 'global', trait: 'stamina', bonus: 600 }, { id: 'stamina_2', name: 'Focus II', desc: '30m focus capacity.', cost: 100000, type: 'global', trait: 'stamina', bonus: 1800 }, { id: 'stamina_3', name: 'Eternal Focus', desc: 'Massive focus capacity.', cost: 5000000, type: 'global', trait: 'stamina', bonus: 7200 });
+
+        // App State
+        let state = {
+            gold: 0, inventory: {}, stats: {}, 
+            skills: { mining: { xp: 0, lvl: 1, progress: 0 }, woodcutting: { xp: 0, lvl: 1, progress: 0 }, fishing: { xp: 0, lvl: 1, progress: 0 }, smithing: { xp: 0, lvl: 1, progress: 0 }, cooking: { xp: 0, lvl: 1, progress: 0 }, firemaking: { xp: 0, lvl: 1, progress: 0 } }, 
+            upgrades: { owned: [] },
+            gear: { owned: ['mining_bronze', 'wc_bronze', 'fish_net', 'smith_hammer', 'cook_apron', 'fm_tbox'], equipped: { mining: 'mining_bronze', woodcutting: 'wc_bronze', fishing: 'fish_net', smithing: 'smith_hammer', cooking: 'cook_apron', firemaking: 'fm_tbox' } },
+            cosmetics: { owned: ['skin_default', 'tool_standard'], activeSkin: 'skin_default', activeToolSet: 'tool_standard', activeBadges: [], milestones: [] },
+            activeSkill: 'mining', activeResource: 'copper_ore', isDoingAction: false, stamina: 0, maxStamina: 300, lastTick: Date.now()
+        };
+
+        // Helpers
+        const hasUpgrade = (id) => state.upgrades.owned.includes(id);
+        const hasGear = (id) => state.gear.owned.includes(id);
+        const hasCosmetic = (id) => state.cosmetics.owned.includes(id);
+        const getResourceConfig = (key) => { let found = null; Object.values(SKILLS).forEach(s => { if (s.resources[key]) found = s.resources[key]; }); return found; };
+        const getSkillBonus = (skill, trait) => UPGRADES_DB.filter(u => u.type === skill && u.trait === trait && hasUpgrade(u.id)).reduce((total, u) => total + u.bonus, 0);
+        const getEquippedGearPower = (skill) => GEAR_DB.find(g => g.id === state.gear.equipped[skill]).power;
+        const getXpForLevel = (lvl) => Math.floor(100 * Math.pow(1.1, lvl - 1) + (lvl * 50));
+        const getLevelFromXp = (xp) => { let l = 1; while(l < 99 && getXpForLevel(l + 1) <= xp) l++; return l; };
+
+        // Core Game Loop
+        function gameLoop() {
+            const now = Date.now(); const delta = (now - state.lastTick) / 1000; state.lastTick = now;
+            if (state.isDoingAction && state.stamina > 0) {
+                state.stamina -= delta; const skill = SKILLS[state.activeSkill]; const res = skill.resources[state.activeResource];
+                if (skill.isProcessor && (state.inventory[res.req] || 0) <= 0) { state.isDoingAction = false; log(`Missing ${getResourceConfig(res.req).name}!`, 'text-red-400 font-bold'); }
+                else { let p = getEquippedGearPower(state.activeSkill) * (1 + getSkillBonus(state.activeSkill, 'speed')); advanceProgress(p * delta); }
+                if (state.stamina <= 0) { state.stamina = 0; state.isDoingAction = false; log(`Focus lost. Click to start.`, "text-orange-400"); }
+            }
+            updateUI(); requestAnimationFrame(gameLoop);
+        }
+
+        function advanceProgress(amount) {
+            const skillData = state.skills[state.activeSkill]; const res = SKILLS[state.activeSkill].resources[state.activeResource];
+            if (!res) return; skillData.progress += amount;
+            if (skillData.progress >= res.diff) { skillData.progress = 0; completeTask(); }
+        }
+
+        function completeTask() {
+            const sKey = state.activeSkill; const sCfg = SKILLS[sKey]; const rKey = state.activeResource; const rCfg = sCfg.resources[rKey]; const sState = state.skills[sKey];
+            if (sCfg.isProcessor) state.inventory[rCfg.req]--;
+            let amt = 1; if (sKey !== 'firemaking') { if (Math.random() < getSkillBonus(sKey, 'luck')) { amt = 2; log(`Double Yield!`, 'text-green-400'); } state.inventory[rKey] = (state.inventory[rKey] || 0) + amt; }
+            state.stats[rKey] = (state.stats[rKey] || 0) + amt;
+            let xp = rCfg.xp * (1 + getSkillBonus(sKey, 'xp')); sState.xp += xp;
+            const newLvl = getLevelFromXp(sState.xp);
+            if (newLvl > sState.lvl) { sState.lvl = newLvl; log(`${sCfg.name} up to ${newLvl}!`, 'text-yellow-400 font-bold'); renderResourceSelector(); renderSkillNav(); }
+            createFloatText(`+${Math.floor(xp)} XP`);
+            if (document.getElementById('content-inventory-wrapper').offsetParent) renderInventory();
+            if (document.getElementById('content-skills-wrapper').offsetParent) renderSkillsPage();
+            if (document.getElementById('content-codex').offsetParent) renderCodex();
+        }
+
+        // Logic & Interaction
+        window.sellAllItems = () => {
+            let total = 0; Object.entries(state.inventory).forEach(([key, count]) => {
+                const cfg = getResourceConfig(key); if (cfg && cfg.val > 0) { let sK = ""; Object.entries(SKILLS).forEach(([sk, sd]) => { if (sd.resources[key]) sK = sk; }); total += Math.floor(cfg.val * count * (1 + getSkillBonus(sK, 'value'))); state.inventory[key] = 0; }
+            });
+            if (total > 0) { state.gold += total; log(`Liquidated for ${total.toLocaleString()} GP.`, 'text-green-400 font-bold'); renderInventory(); saveGame(); }
+        };
+
+        window.sellItem = (key) => {
+            const count = state.inventory[key]; const cfg = getResourceConfig(key);
+            if (cfg && count > 0) {
+                let sK = ""; Object.entries(SKILLS).forEach(([sk, sd]) => { if (sd.resources[key]) sK = sk; });
+                const val = Math.floor(cfg.val * count * (1 + getSkillBonus(sK, 'value')));
+                state.gold += val; state.inventory[key] = 0; log(`Sold for ${val.toLocaleString()} GP.`); renderInventory(); saveGame();
+            }
+        };
+
+        window.buyUpgrade = (id, cost) => { if (state.gold >= cost && !hasUpgrade(id)) { state.gold -= cost; state.upgrades.owned.push(id); const up = UPGRADES_DB.find(u => u.id === id); if (up.trait === 'stamina') state.maxStamina = up.bonus; renderUpgrades(); updateUI(); saveGame(); } };
+        window.buyGear = (id) => { const g = GEAR_DB.find(gear => gear.id === id); if (state.gold >= g.cost && state.skills[g.type].lvl >= g.lvl && !hasGear(id)) { state.gold -= g.cost; state.gear.owned.push(id); state.gear.equipped[g.type] = id; log(`Purchased ${g.name}.`); renderGear(); updateUI(); saveGame(); } };
+        window.equipGear = (id) => { const g = GEAR_DB.find(gear => gear.id === id); state.gear.equipped[g.type] = id; renderGear(); saveGame(); };
+        window.buyCosmetic = (id) => { const c = COSMETICS_DB.find(item => item.id === id); if (state.gold >= c.cost && !hasCosmetic(id)) { state.gold -= c.cost; state.cosmetics.owned.push(id); applyCosmetic(id); renderStore(); updateUI(); saveGame(); } };
+
+        window.applyCosmetic = (id) => {
+            const c = COSMETICS_DB.find(item => item.id === id); if (!hasCosmetic(id)) return;
+            if (c.type === 'skin') { state.cosmetics.activeSkin = id; document.body.className = c.value; }
+            else if (c.type === 'tool') { state.cosmetics.activeToolSet = id; updateSkillVisuals(); }
+            else if (c.type === 'badge') { if (state.cosmetics.activeBadges.includes(id)) state.cosmetics.activeBadges = state.cosmetics.activeBadges.filter(b => b !== id); else { if (state.cosmetics.activeBadges.length >= 3) state.cosmetics.activeBadges.shift(); state.cosmetics.activeBadges.push(id); } renderHeaderBadges(); }
+            renderStore(); saveGame();
+        };
+
+        // UI Helpers
+        function renderHeaderBadges() {
+            const container = document.getElementById('badge-display'); if (!container) return;
+            let html = state.cosmetics.activeBadges.map(bid => { const b = COSMETICS_DB.find(c => c.id === bid); return `<span class="badge-icon text-xl" title="${b.name}">${b.value}</span>`; }).join('');
+            container.innerHTML = html;
+        }
+
+        function renderSkillNav() {
+            const nav = document.getElementById('skill-nav'); if (!nav) return; nav.innerHTML = '';
+            Object.entries(SKILLS).forEach(([key, cfg]) => {
+                const btn = document.createElement('button'); const active = state.activeSkill === key;
+                btn.className = `skill-nav-btn px-4 py-2 text-center min-w-[70px] transition-all border ${active ? 'active border-amber-500' : 'border-transparent opacity-60 hover:opacity-100'}`;
+                btn.innerHTML = `<span class="text-[8px] uppercase font-black text-zinc-500">${cfg.icon}</span><div class="text-xs font-extrabold text-yellow-500">${state.skills[key].lvl}</div>`;
+                btn.onclick = () => { state.activeSkill = key; state.activeResource = Object.keys(cfg.resources)[0]; state.isDoingAction = false; renderSkillNav(); renderResourceSelector(); updateSkillVisuals(); renderGear(); if (document.getElementById('content-upgrades-wrapper').offsetParent) renderUpgrades(); };
+                nav.appendChild(btn);
+            });
+        }
+
+        function renderResourceSelector() {
+            const container = document.getElementById('resource-selector'); if (!container) return; container.innerHTML = '';
+            const skill = SKILLS[state.activeSkill]; Object.entries(skill.resources).forEach(([key, res]) => {
+                const btn = document.createElement('button'); const locked = state.skills[state.activeSkill].lvl < res.lvl; const active = state.activeResource === key;
+                btn.className = `p-1 rounded-lg border transition-all flex flex-col items-center gap-0.5 ${locked ? 'bg-black/20 text-zinc-800 border-transparent grayscale' : (active ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400' : 'bg-zinc-800 border-transparent hover:border-zinc-700 text-zinc-500')}`;
+                btn.innerHTML = `<div class="w-3 h-3 rounded-full" style="background: ${res.color}"></div><span class="text-[7px] font-black uppercase tracking-tighter">${res.name}</span>`;
+                btn.onclick = () => { if (!locked) { state.activeResource = key; state.isDoingAction = false; updateSkillVisuals(); renderResourceSelector(); } };
+                container.appendChild(btn);
+            });
+        }
+
+        function renderInventory() {
+            const container = document.getElementById('content-inventory'); if (!container) return; container.innerHTML = '';
+            let items = Object.entries(state.inventory).filter(([_, count]) => count > 0);
+            items.forEach(([key, count]) => {
+                const cfg = getResourceConfig(key); if (!cfg) return; let sK = ""; Object.entries(SKILLS).forEach(([sk, sd]) => { if (sd.resources[key]) sK = sk; });
+                const sellVal = Math.floor(cfg.val * count * (1 + getSkillBonus(sK, 'value')));
+                const card = document.createElement('div'); card.className = 'item-card p-4 flex flex-col items-center text-center';
+                card.innerHTML = `<div class="w-8 h-8 rounded-full mb-2" style="background-color: ${cfg.color}"></div><div class="text-[10px] font-black text-white leading-none mb-1">${cfg.name}</div><div class="text-[10px] text-zinc-500 mb-3">${count.toLocaleString()}</div><button onclick="sellItem('${key}')" class="w-full bg-zinc-800 hover:bg-yellow-500 hover:text-black text-[8px] py-1 rounded-lg font-black uppercase transition-all ${cfg.val === 0 ? 'hidden' : ''}">Sell GP: ${sellVal.toLocaleString()}</button>`;
+                container.appendChild(card);
+            });
+            if (!items.length) container.innerHTML = '<div class="col-span-full text-center py-20 italic text-zinc-600 text-xs uppercase tracking-widest">Bag empty</div>';
+        }
+
+        function renderGear() {
+            const container = document.getElementById('content-gear-list'); const stats = document.getElementById('current-power-stats'); const title = document.getElementById('gear-skill-title');
+            if (!container || !stats || !title) return; const skillCfg = SKILLS[state.activeSkill]; title.innerText = `${skillCfg.name} Gear`;
+            const currentId = state.gear.equipped[state.activeSkill]; const currentGear = GEAR_DB.find(g => g.id === currentId);
+            const totalSpeed = (currentGear.power * (1 + getSkillBonus(state.activeSkill, 'speed'))).toFixed(1);
+            stats.innerHTML = `<div class="bg-black/30 p-4 rounded-xl"><div class="text-[10px] text-zinc-500 font-black mb-1 uppercase tracking-widest">Active Tool</div><div class="text-white font-bold text-sm">${currentGear.name}</div></div><div class="bg-black/30 p-4 rounded-xl"><div class="text-[10px] text-zinc-500 font-black mb-1 uppercase tracking-widest">Total Efficiency</div><div class="text-blue-400 font-bold text-sm">${totalSpeed}</div></div>`;
+            container.innerHTML = ''; GEAR_DB.filter(g => g.type === state.activeSkill).forEach(g => {
+                const owned = hasGear(g.id); const equipped = state.gear.equipped[g.type] === g.id;
+                const card = document.createElement('div'); card.className = `item-card p-5 flex flex-col justify-between ${equipped ? 'border-blue-500/50 bg-blue-500/5' : ''}`;
+                let btn = equipped ? `<button class="w-full bg-blue-600 text-white py-2 rounded-lg text-[10px] font-black uppercase">Equipped</button>` : (owned ? `<button onclick="equipGear('${g.id}')" class="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-2 rounded-lg text-[10px] font-black uppercase">Equip</button>` : `<button onclick="buyGear('${g.id}')" class="w-full ${state.gold >= g.cost && state.skills[g.type].lvl >= g.lvl ? 'bg-yellow-600 hover:bg-yellow-500 text-black' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'} py-2 rounded-lg text-[10px] font-black uppercase">Buy GP: ${g.cost.toLocaleString()}</button>`);
+                card.innerHTML = `<div><div class="flex justify-between items-start mb-1"><h4 class="font-bold text-zinc-200 text-sm">${g.name}</h4><span class="text-[9px] ${state.skills[g.type].lvl >= g.lvl ? 'text-green-500' : 'text-red-500'} font-black">Lv ${g.lvl}</span></div><p class="text-[10px] text-zinc-500 mb-6 italic">+${g.power} Power</p></div>${btn}`;
+                container.appendChild(card);
+            });
+        }
+
+        function renderSkillsPage() {
+            const overview = document.getElementById('total-skills-overview');
+            const totalLvl = Object.values(state.skills).reduce((acc, s) => acc + s.lvl, 0); const totalXp = Object.values(state.skills).reduce((acc, s) => acc + s.xp, 0);
+            if (overview) overview.innerHTML = `<div class="bg-white/[0.02] border border-white/5 p-6 rounded-2xl"><div class="flex justify-between items-center mb-6"><div><h2 class="rs-font text-2xl font-black text-white">Profile</h2><p class="text-[9px] text-zinc-500 uppercase font-black tracking-widest">Mastery Progression</p></div><div class="text-right leading-none"><div class="text-3xl rs-font text-blue-500 font-black">${totalLvl}</div><div class="text-[9px] text-zinc-600 uppercase font-black mt-2">Total Lvl</div></div></div><div class="grid grid-cols-2 gap-4"><div class="bg-black/30 p-4 rounded-xl"><div class="text-[9px] text-zinc-600 uppercase font-black mb-1">Total XP</div><div class="text-lg font-bold text-white">${Math.floor(totalXp).toLocaleString()}</div></div><div class="bg-black/30 p-4 rounded-xl text-right"><div class="text-[9px] text-zinc-600 uppercase font-black mb-1">Completion</div><div class="text-lg font-bold text-blue-500">${((totalLvl/594)*100).toFixed(1)}%</div></div></div></div>`;
+            const container = document.getElementById('content-skills');
+            if (container) {
+                container.innerHTML = ''; Object.entries(state.skills).forEach(([key, sState]) => {
+                    const sCfg = SKILLS[key]; const lvl = sState.lvl; const xpCur = getXpForLevel(lvl); const xpNext = getXpForLevel(lvl + 1);
+                    const p = (lvl < 99) ? Math.min(100, ((sState.xp - xpCur) / (xpNext - xpCur)) * 100) : 100;
+                    const card = document.createElement('div'); card.className = 'panel p-5 flex flex-col gap-4 hover:border-zinc-500 transition-all';
+                    card.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="rs-font text-sm text-yellow-500 font-bold">${sCfg.icon} ${sCfg.name}</h3><p class="text-[9px] text-zinc-600 font-black uppercase">${Math.floor(sState.xp).toLocaleString()} XP</p></div><div class="text-right leading-none"><span class="text-[10px] text-zinc-600 uppercase font-black block mb-1">Level</span><span class="text-2xl rs-font text-white font-bold">${lvl}</span></div></div><div class="progress-container h-1.5"><div class="skill-progress-fill" style="width: ${p}%"></div></div><div class="flex justify-between text-[8px] text-zinc-600 uppercase font-black"><span>${Math.floor(p)}% Progress</span><span>${lvl < 99 ? (Math.floor(xpNext - sState.xp)).toLocaleString() + ' to go' : 'Maxed'}</span></div>`;
+                    container.appendChild(card);
+                });
+            }
+        }
+
+        function renderUpgrades() {
+            const skillU = UPGRADES_DB.filter(u => u.type === state.activeSkill); const globalU = UPGRADES_DB.filter(u => u.type === 'global');
+            const sEl = document.getElementById('content-upgrades-skill'); const gEl = document.getElementById('content-upgrades-global'); if (!sEl || !gEl) return;
+            sEl.innerHTML = `<div class="mb-4"><h3 class="text-yellow-500 rs-font font-black uppercase text-xs">${SKILLS[state.activeSkill].name} Talents</h3></div><div id="skill-upgrades-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>`;
+            gEl.innerHTML = `<div class="mb-4 mt-8 border-t border-white/5 pt-8"><h3 class="text-blue-400 rs-font font-black uppercase text-xs">Global Mastery</h3></div><div id="global-upgrades-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>`;
+            const rList = (id, list) => { const c = document.getElementById(id); list.forEach(u => {
+                const owned = hasUpgrade(u.id); const card = document.createElement('div'); card.className = `item-card p-5 flex flex-col justify-between ${owned ? 'opacity-40 grayscale' : ''}`;
+                card.innerHTML = `<div><h3 class="font-bold text-zinc-200 text-xs mb-1">${u.name}</h3><p class="text-[10px] text-zinc-500 mb-6 italic leading-relaxed">"${u.desc}"</p></div><button onclick="buyUpgrade('${u.id}', ${u.cost})" class="w-full ${owned ? 'bg-green-500/10 text-green-500 cursor-default' : (state.gold >= u.cost ? 'bg-yellow-600 hover:bg-yellow-500 text-black' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed')} py-2 rounded-lg text-[9px] font-black uppercase transition-all">${owned ? 'Learned' : `Buy GP: ${u.cost.toLocaleString()}`}</button>`;
+                c.appendChild(card);
+            }); };
+            rList('skill-upgrades-grid', skillU); rList('global-upgrades-grid', globalU);
+        }
+
+        function renderStore() {
+            const grids = { skin: document.getElementById('store-skins'), tool: document.getElementById('store-tools'), badge: document.getElementById('store-badges') }; if (!grids.skin) return;
+            Object.entries(grids).forEach(([type, el]) => {
+                const title = type === 'skin' ? 'Interface Skins' : (type === 'tool' ? 'Tool Visuals' : 'Badges');
+                el.innerHTML = `<div class="mb-4"><h3 class="text-purple-400 rs-font font-black uppercase text-xs">${title}</h3></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>`;
+                const grid = el.querySelector('.grid');
+                COSMETICS_DB.filter(c => c.type === type).forEach(c => {
+                    const owned = hasCosmetic(c.id); const active = state.cosmetics.activeSkin === c.id || state.cosmetics.activeToolSet === c.id || state.cosmetics.activeBadges.includes(c.id);
+                    const card = document.createElement('div'); card.className = `item-card p-5 flex flex-col justify-between ${active ? 'border-purple-500 bg-purple-500/5' : ''}`;
+                    let btn = active ? `<button onclick="applyCosmetic('${c.id}')" class="w-full bg-purple-600 text-white py-2 rounded-lg text-[9px] font-black uppercase">${c.type === 'badge' ? 'Unequip' : 'Equipped'}</button>` : (owned ? `<button onclick="applyCosmetic('${c.id}')" class="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-2 rounded-lg text-[9px] font-black uppercase transition-all">Equip</button>` : `<button onclick="buyCosmetic('${c.id}')" class="w-full ${state.gold >= c.cost ? 'bg-yellow-600 hover:bg-yellow-500 text-black' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'} py-2 rounded-lg text-[9px] font-black uppercase transition-all">Buy GP: ${c.cost.toLocaleString()}</button>`);
+                    card.innerHTML = `<div><div class="flex justify-between items-center mb-1"><h3 class="font-bold text-zinc-200 text-xs">${c.name}</h3>${c.type === 'badge' ? `<span class="text-xl">${c.value}</span>` : ''}</div><p class="text-[9px] text-zinc-500 mb-6 italic leading-relaxed">"${c.desc}"</p></div>${btn}`;
+                    grid.appendChild(card);
+                });
+            });
+        }
+
+        function renderCodex() {
+            const container = document.getElementById('content-codex'); if (!container) return; container.innerHTML = '';
+            Object.entries(SKILLS).forEach(([key, skill]) => {
+                const s = document.createElement('div'); s.className = 'panel p-6 bg-black/20 rounded-2xl';
+                s.innerHTML = `<h3 class="rs-font font-black text-lg text-yellow-500 mb-6 border-b border-white/5 pb-2">${skill.icon} ${skill.name}</h3><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${Object.entries(skill.resources).map(([rK, r]) => { const total = state.stats[rK] || 0; return `<div class="bg-black/30 p-4 rounded-xl border border-white/5"><div class="flex justify-between items-center mb-1"><span class="font-bold text-[10px]" style="color: ${r.color}">${r.name}</span><span class="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Lv ${r.lvl}</span></div><p class="text-[8px] text-zinc-600 mb-3 font-black uppercase">${r.xp} XP • ${r.val} GP</p><div class="bg-black/50 p-2 rounded-lg text-center"><span class="text-[10px] text-yellow-500 font-black uppercase tabular-nums">${total.toLocaleString()}</span></div></div>`; }).join('')}</div>`;
+                container.appendChild(s);
+            });
+        }
+
+        function updateSkillVisuals() {
+            const skill = SKILLS[state.activeSkill]; let res = skill.resources[state.activeResource]; if (!res) { state.activeResource = Object.keys(skill.resources)[0]; res = skill.resources[state.activeResource]; }
+            document.getElementById('active-skill-name').innerText = skill.name; document.getElementById('current-target-name').innerText = res.name;
+            const host = document.getElementById('svg-host'); const toolCol = COSMETICS_DB.find(c => c.id === state.cosmetics.activeToolSet).value;
+            let svg = ''; if (state.activeSkill === 'mining') svg = `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M15,85 L35,45 L75,35 L90,65 L75,85 Z" fill="#4e342e"/><circle cx="45" cy="55" r="7" fill="${res.color}"/><circle cx="70" cy="50" r="5" fill="${res.color}"/><circle cx="60" cy="75" r="6" fill="${res.color}"/></svg>`;
+            else if (state.activeSkill === 'woodcutting') svg = `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="42" y="50" width="16" height="50" fill="#3e2723"/><circle cx="50" cy="40" r="35" fill="${res.color}"/></svg>`;
+            else if (state.activeSkill === 'fishing') svg = `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="45" fill="#01579b" opacity="0.4"/><path d="M20,55 Q50,30 80,55 Q50,80 20,55" fill="${res.color}"/><circle cx="65" cy="50" r="3" fill="black"/></svg>`;
+            else svg = `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="15" y="75" width="70" height="15" fill="#37474f"/><path d="M25,75 L50,25 L75,75" fill="${res.color}" opacity="0.9"/></svg>`;
+            host.innerHTML = svg; document.getElementById('tool-head').setAttribute('fill', toolCol);
+        }
+
+        function updateUI() {
+            document.getElementById('gold-display').innerText = `${Math.floor(state.gold).toLocaleString()} GP`;
+            document.getElementById('total-level').innerText = Object.values(state.skills).reduce((acc, s) => acc + s.lvl, 0);
+            const totalXp = Object.values(state.skills).reduce((acc, s) => acc + s.xp, 0);
+            document.getElementById('total-progress-bar-header').style.width = `${Math.min(100, (totalXp / 1000000) * 100)}%`;
+            const sState = state.skills[state.activeSkill]; const res = SKILLS[state.activeSkill].resources[state.activeResource];
+            if (res) { const perc = (sState.progress / res.diff) * 100; document.getElementById('action-progress-bar').style.width = `${perc}%`; document.getElementById('progress-percent').innerText = `${Math.floor(perc)}%`; }
+            document.getElementById('stamina-bar').style.width = `${(state.stamina / state.maxStamina) * 100}%`;
+            const m = Math.floor(state.stamina / 60); const s = Math.floor(state.stamina % 60);
+            document.getElementById('stamina-timer').innerText = `${m}:${s.toString().padStart(2, '0')}`;
+            const cont = document.getElementById('action-container'); if (state.isDoingAction) cont.classList.add('is-active'); else cont.classList.remove('is-active');
+        }
+
+        function log(msg, cls = 'text-zinc-500') {
+            const logs = document.getElementById('game-logs'); const div = document.createElement('div');
+            div.className = `pb-1 border-b border-white/[0.03] last:border-0 ${cls}`;
+            div.innerText = `[${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}] ${msg}`;
+            logs.prepend(div); if (logs.childNodes.length > 50) logs.removeChild(logs.lastChild);
+        }
+
+        function createFloatText(txt) {
+            const target = document.getElementById('main-target'); const div = document.createElement('div');
+            div.className = `ore-float text-sky-400 text-xs font-black`; div.innerText = txt;
+            div.style.left = `50%`; div.style.top = `30%`; target.appendChild(div); setTimeout(() => div.remove(), 1000);
+        }
+
+        function saveGame() {
+            localStorage.setItem('rune_idle_offline_save', JSON.stringify({ state, lastSave: Date.now() }));
+            const ind = document.getElementById('save-indicator');
+            ind.style.opacity = '1'; setTimeout(() => ind.style.opacity = '0', 2000);
+        }
+
+        function loadGame() {
+            const local = localStorage.getItem('rune_idle_offline_save');
+            if (local) {
+                const loaded = JSON.parse(local).state;
+                Object.keys(loaded.skills || {}).forEach(s => { if (state.skills[s]) Object.assign(state.skills[s], loaded.skills[s]); });
+                Object.assign(state.inventory, loaded.inventory || {}); 
+                Object.assign(state.stats, loaded.stats || {});
+                state.gold = loaded.gold || 0; 
+                state.upgrades = loaded.upgrades || state.upgrades;
+                state.gear = loaded.gear || state.gear; 
+                state.cosmetics = loaded.cosmetics || state.cosmetics;
+                let maxS = 300; UPGRADES_DB.filter(u => u.trait === 'stamina' && hasUpgrade(u.id)).forEach(u => maxS = Math.max(maxS, u.bonus));
+                state.maxStamina = maxS;
+                const s = COSMETICS_DB.find(c => c.id === state.cosmetics.activeSkin);
+                if (s) document.body.className = s.value; 
+                renderHeaderBadges();
+            }
+        }
+
+        window.showTab = (id) => {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden')); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            const wrap = document.getElementById(`content-${id}${['inventory','upgrades','skills','gear','store'].includes(id)?'-wrapper':''}`);
+            if (wrap) wrap.classList.remove('hidden'); const btn = document.querySelector(`button[onclick="showTab('${id}')"]`); if (btn) btn.classList.add('active');
+            if (id === 'skills') renderSkillsPage(); if (id === 'upgrades') renderUpgrades(); if (id === 'gear') renderGear(); if (id === 'codex') renderCodex(); if (id === 'store') renderStore();
+        };
+
+        window.toggleAdminPanel = () => { document.getElementById('admin-controls').classList.toggle('hidden'); };
+        window.adminGrantGold = () => { state.gold += 1000000; log("Admin: 1M Gold added."); updateUI(); saveGame(); };
+        window.adminResetStamina = () => { state.stamina = 999999; state.isDoingAction = true; log("Admin: Focus refilled."); updateUI(); };
+        window.handleTargetClick = () => { state.isDoingAction = true; state.stamina = state.maxStamina; log(`Action started: ${SKILLS[state.activeSkill].name}`, 'text-yellow-500 font-bold'); };
+
+        function init() {
+            loadGame(); 
+            renderSkillNav(); 
+            renderResourceSelector();
+            renderInventory(); 
+            updateSkillVisuals(); 
+            renderSkillsPage();
+            document.getElementById('main-target').onclick = handleTargetClick;
+            requestAnimationFrame(gameLoop); 
+            setInterval(saveGame, 30000);
+            log("Rune Idle: Offline mode active.");
+        }
+        
+        window.onload = init;
+    </script>
+</body>
+</html>
